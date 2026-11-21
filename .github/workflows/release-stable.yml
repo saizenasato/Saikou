@@ -44,7 +44,7 @@ jobs:
               -Pandroid.injected.signing.key.password="${{ secrets.PASSWORD }}"
             )
           else
-            echo "Signing secrets are not configured in this repository; building an unsigned release APK."
+            echo "No signing secrets; using the keystore committed in ./keystore."
           fi
           ./gradlew assembleRelease "${ARGS[@]}"
         shell: bash
@@ -61,6 +61,13 @@ jobs:
             mv app/build/outputs/apk/release/app-release-unsigned.apk "$OUT"
           fi
           ls -l "$OUT"
+
+      - name: Verify APK is signed
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/Saikou-v${{ steps.set_vars.outputs.version }}.apk"
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --verbose "$APK"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

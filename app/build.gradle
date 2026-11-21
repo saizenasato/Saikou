@@ -8,6 +8,19 @@ plugins {
     id 'com.google.devtools.ksp'
 }
 
+// Release signing: CI can inject a keystore through -Pandroid.injected.signing.*
+// (KEYSTORE_B64/PASSWORD secrets). Otherwise the fork keystore in ./keystore is used so
+// every release APK is signed and can actually be installed on a device.
+def injectedSigning = project.hasProperty('android.injected.signing.store.file')
+def forkKeystoreDir = rootProject.file('keystore')
+def forkKeystorePropsFile = new File(forkKeystoreDir, 'keystore.properties')
+def forkKeystoreProps = new Properties()
+if (forkKeystorePropsFile.exists()) {
+    forkKeystorePropsFile.withInputStream { forkKeystoreProps.load(it) }
+}
+def forkKeystoreFile = new File(forkKeystoreDir, forkKeystoreProps.getProperty('storeFile', 'fork-release.jks'))
+def hasForkKeystore = !injectedSigning && forkKeystorePropsFile.exists() && forkKeystoreFile.exists()
+
 android {
     namespace 'ani.saikou'
     compileSdk 37
@@ -39,6 +52,17 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasForkKeystore) {
+            release {
+                storeFile forkKeystoreFile
+                storePassword forkKeystoreProps.getProperty('storePassword')
+                keyAlias forkKeystoreProps.getProperty('keyAlias')
+                keyPassword forkKeystoreProps.getProperty('keyPassword')
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix ".beta"
@@ -51,6 +75,9 @@ android {
         }
         release {
             debuggable false
+            if (hasForkKeystore) {
+                signingConfig signingConfigs.release
+            }
             buildConfigField "String", "MY_CUSTOM_API_KEY", "\"${project.findProperty('API_KEY') ?: ""}\""
             buildConfigField "String", "SERVER_URL", "\"${project.findProperty('HOST_URL') ?: ""}\""
             buildConfigField "long", "BUILD_TIME", "${System.currentTimeMillis()}L"
