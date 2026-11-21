@@ -51,8 +51,16 @@ jobs:
 
       - name: Rename APK
         run: |
-          mv app/build/outputs/apk/release/app-release.apk \
-             app/build/outputs/apk/release/Saikou-v${{ steps.set_vars.outputs.version }}.apk
+          set -euo pipefail
+          OUT="app/build/outputs/apk/release/Saikou-v${{ steps.set_vars.outputs.version }}.apk"
+          # Gradle emits app-release.apk only when a signing config was injected;
+          # without signing secrets the APK is app-release-unsigned.apk.
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            mv app/build/outputs/apk/release/app-release.apk "$OUT"
+          else
+            mv app/build/outputs/apk/release/app-release-unsigned.apk "$OUT"
+          fi
+          ls -l "$OUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
